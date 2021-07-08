@@ -1,2 +1,2 @@
-# Custom-Commands
+# Commands
 Custom commands written for Not Awesome 2
