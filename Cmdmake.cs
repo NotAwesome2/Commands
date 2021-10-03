@@ -16,7 +16,7 @@ namespace MCGalaxy {
 			int amountFound = 0;
 			
 			BlockDefinition[] defs = p.level.CustomBlockDefs;
-			for (RawID b = requestedSlot; b >= Block.CpeCount; b--) {
+			for (RawID b = requestedSlot; b >= Block.CPE_COUNT; b--) {
 				RawID cur = Block.FromRaw(b);
 				//found free slot
 				if (defs[cur] == null) {
@@ -83,7 +83,7 @@ namespace MCGalaxy {
 			string name = GetBlockName(p, (RawID)sourceID);
 			int requestedSlot = Block.MaxRaw;
 			if (args.Length > 2) {
-				if (!CommandParser.GetInt(p, args[2], "starting ID", ref requestedSlot, Block.CpeCount, Block.MaxRaw)) { return; } 
+				if (!CommandParser.GetInt(p, args[2], "starting ID", ref requestedSlot, Block.CPE_COUNT, Block.MaxRaw)) { return; } 
 			}
 			
 			switch (type)
