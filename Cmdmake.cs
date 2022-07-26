@@ -1,7 +1,9 @@
 using System;
 using MCGalaxy.Commands;
+using System.Collections.Generic;
 using MCGalaxy.Blocks;
 using RawID = System.UInt16;
+using MakeType = System.Action<MCGalaxy.Player, int, string, System.UInt16>;
 
 namespace MCGalaxy {
 	public class CmdMake : Command2 {
@@ -10,7 +12,30 @@ namespace MCGalaxy {
 		public override string type { get { return "other"; } }
 		public override bool museumUsable { get { return false; } }
 		public override LevelPermission defaultRank { get { return LevelPermission.Operator; } }
-		
+        
+        static bool hooked = false;
+        static string TYPES = "";
+        static Dictionary<string, MakeType> makeActions = new Dictionary<string, MakeType>();
+        static Command lb;
+        
+        static void Load() {
+            makeActions["slabs"] = MakeSlabs;
+            makeActions["walls"] = MakeWalls;
+            makeActions["stairs"] = MakeStairs;
+            makeActions["flatstairs"] = MakeFlatStairs;
+            makeActions["corners"] = MakeCorners;
+            makeActions["eighths"] = MakeEighths;
+            makeActions["panes"] = MakePanes;
+            
+            System.Text.StringBuilder sb = new System.Text.StringBuilder();
+            foreach (KeyValuePair<string, MakeType> pair in makeActions) {
+                sb.Append(pair.Key + ", ");
+            }
+            sb.Remove(sb.Length-2, 2); //remove last comma and space
+            TYPES = sb.ToString();
+            lb = Command.Find("levelblock");
+        }
+        
 		static bool AreEnoughLBspacesFree(Player p, int amountRequested, out int blockID, RawID requestedSlot) {
 			blockID = 0;
 			int amountFound = 0;
@@ -59,14 +84,17 @@ namespace MCGalaxy {
         }
 		
 		
-		public override void Use(Player p, string message, CommandData data)
-		{
+		public override void Use(Player p, string message, CommandData data) {
 			bool canUse = false;
 			if (LevelInfo.IsRealmOwner(p.name, p.level.name)) canUse = true;
 			if (p.group.Permission >= LevelPermission.Operator && p.group.Permission >= p.level.BuildAccess.Min) { canUse = true; }
 			if (!canUse) {
 				p.Message("&cYou can only use this command on your own maps."); return;
 			}
+            if (!hooked) {
+                Load();
+            }
+            
 			
 			if (message == "") { Help(p); return; }
 			string[] args = message.SplitSpaces(3);
@@ -76,41 +104,43 @@ namespace MCGalaxy {
 			string type = args[0].ToLower();
 			RawID sourceID;
 			if (!CommandParser.GetBlock(p, args[1], out sourceID)) { return; }
-			sourceID = p.ConvertBlock(sourceID); //convert physics blocks like train to its clientside equivalent ID
+			sourceID = p.Session.ConvertBlock(sourceID); //convert physics blocks like train to its clientside equivalent ID
 
 			
-			Command lb = Command.Find("levelblock");
 			string name = GetBlockName(p, (RawID)sourceID);
 			int requestedSlot = Block.MaxRaw;
 			if (args.Length > 2) {
 				if (!CommandParser.GetInt(p, args[2], "starting ID", ref requestedSlot, Block.CPE_COUNT, Block.MaxRaw)) { return; } 
 			}
 			
-			switch (type)
-			{
-			  case "slabs":
-				  MakeSlabs(p, sourceID, lb, name, (RawID)requestedSlot);
-				  return;
-			  case "walls":
-				  MakeWalls(p, sourceID, lb, name, (RawID)requestedSlot);
-				  return;
-			  case "stairs":
-				  MakeStairs(p, sourceID, lb, name, (RawID)requestedSlot);
-				  return;
-			  case "corners":
-				  MakeCorners(p, sourceID, lb, name, (RawID)requestedSlot);
-				  return;
-			  case "eighths":
-				  MakeEighths(p, sourceID, lb, name, (RawID)requestedSlot);
-				  return;
-			  default:
-				  p.Message("%WInvalid type \"{0}\".", type);
-				  p.Message("Types can be: %b{0}", TYPES);
-				  return;
-			}
+            if (makeActions.ContainsKey(type)) {
+                makeActions[type](p, sourceID, name, (RawID)requestedSlot);
+            } else {
+                p.Message("%WInvalid type \"{0}\".", type);
+                p.Message("Types can be: %b{0}", TYPES);
+            }
 		}
 		
-		static void MakeSlabs(Player p, int origin, Command lb, string name, RawID requestedSlot) {
+		static void MakePanes(Player p, int origin, string name, RawID requestedSlot) {
+			int dest;
+			if (!AreEnoughLBspacesFree(p, 2, out dest, requestedSlot)) { return; }
+			
+			//WE  (0, 0, 6) to (16, 16, 10)
+			lb.Use(p, "copy " + origin + " " + dest);
+			lb.Use(p, "edit " + dest + " name " + name + "-WE");
+			lb.Use(p, "edit " + dest + " min 0 0 6");
+			lb.Use(p, "edit " + dest + " max 16 16 10");
+			lb.Use(p, "edit " + dest + " blockslight 0");
+			dest -=1;
+			//NS (6, 0, 0) to (10, 16, 16)
+			lb.Use(p, "copy " + origin + " " + dest);
+			lb.Use(p, "edit " + dest + " name " + name + "-NS");
+			lb.Use(p, "edit " + dest + " min 6 0 0");
+			lb.Use(p, "edit " + dest + " max 10 16 16");
+			lb.Use(p, "edit " + dest + " blockslight 0");
+		}
+        
+		static void MakeSlabs(Player p, int origin, string name, RawID requestedSlot) {
 			int dest;
 			if (!AreEnoughLBspacesFree(p, 2, out dest, requestedSlot)) { return; }
 			
@@ -127,10 +157,9 @@ namespace MCGalaxy {
 			lb.Use(p, "edit " + dest + " min 0 8 0");
 			lb.Use(p, "edit " + dest + " max 16 16 16");
 			lb.Use(p, "edit " + dest + " blockslight 1");
-			Command.Find("blockproperties").Use(p, "level "+dest+" stackblock "+origin);
+			Command.Find("blockproperties").Use(p, "level "+(dest+1)+" stackblock "+origin);
 		}
-		
-		static void MakeWalls(Player p, int origin, Command lb, string name, RawID requestedSlot) {
+		static void MakeWalls(Player p, int origin, string name, RawID requestedSlot) {
 			int dest;
 			if (!AreEnoughLBspacesFree(p, 4, out dest, requestedSlot)) { return; }
 			
@@ -163,8 +192,7 @@ namespace MCGalaxy {
 			lb.Use(p, "edit " + dest + " max 16 "+height+" 16");
 			lb.Use(p, "edit " + dest + " blockslight 0");
 		}
-		
-		static void MakeStairs(Player p, int origin, Command lb, string name, RawID requestedSlot) {
+		static void MakeStairs(Player p, int origin, string name, RawID requestedSlot) {
 			int dest;
 			if (!AreEnoughLBspacesFree(p, 8, out dest, requestedSlot)) { return; }
 			
@@ -230,8 +258,73 @@ namespace MCGalaxy {
 			lb.Use(p, "edit " + dest + " max 16 "+height+" 16");
 			lb.Use(p, "edit " + dest + " blockslight 0");
 		}
-
-		static void MakeCorners(Player p, int origin, Command lb, string name, RawID requestedSlot) {
+		static void MakeFlatStairs(Player p, int origin, string name, RawID requestedSlot) {
+			int dest;
+			if (!AreEnoughLBspacesFree(p, 8, out dest, requestedSlot)) { return; }
+			
+			
+			int height = 8;
+			//north
+			lb.Use(p, "copy " + origin + " " + dest);
+			lb.Use(p, "edit " + dest + " name " + name + "-D-N");
+			lb.Use(p, "edit " + dest + " min 0 0 0");
+			lb.Use(p, "edit " + dest + " max 16 "+height+" 1");
+			lb.Use(p, "edit " + dest + " blockslight 0");
+			dest -=1;
+			//south
+			lb.Use(p, "copy " + origin + " " + dest);
+			lb.Use(p, "edit " + dest + " name " + name + "-D-S");
+			lb.Use(p, "edit " + dest + " min 0 0 15");
+			lb.Use(p, "edit " + dest + " max 16 "+height+" 16");
+			lb.Use(p, "edit " + dest + " blockslight 0");
+			dest -=1;
+			//west
+			lb.Use(p, "copy " + origin + " " + dest);
+			lb.Use(p, "edit " + dest + " name " + name + "-D-W");
+			lb.Use(p, "edit " + dest + " min 0 0 0");
+			lb.Use(p, "edit " + dest + " max 1 "+height+" 16");
+			lb.Use(p, "edit " + dest + " blockslight 0");
+			dest -=1;
+			//east
+			lb.Use(p, "copy " + origin + " " + dest);
+			lb.Use(p, "edit " + dest + " name " + name + "-D-E");
+			lb.Use(p, "edit " + dest + " min 15 0 0");
+			lb.Use(p, "edit " + dest + " max 16 "+height+" 16");
+			lb.Use(p, "edit " + dest + " blockslight 0");
+			dest -=1;
+			
+			//--------------------------------------------------------------------------------upper
+			height = 16;
+			
+			//north
+			lb.Use(p, "copy " + origin + " " + dest);
+			lb.Use(p, "edit " + dest + " name " + name + "-U-N");
+			lb.Use(p, "edit " + dest + " min 0 8 0");
+			lb.Use(p, "edit " + dest + " max 16 "+height+" 1");
+			lb.Use(p, "edit " + dest + " blockslight 0");
+			dest -=1;
+			//south
+			lb.Use(p, "copy " + origin + " " + dest);
+			lb.Use(p, "edit " + dest + " name " + name + "-U-S");
+			lb.Use(p, "edit " + dest + " min 0 8 15");
+			lb.Use(p, "edit " + dest + " max 16 "+height+" 16");
+			lb.Use(p, "edit " + dest + " blockslight 0");
+			dest -=1;
+			//west
+			lb.Use(p, "copy " + origin + " " + dest);
+			lb.Use(p, "edit " + dest + " name " + name + "-U-W");
+			lb.Use(p, "edit " + dest + " min 0 8 0");
+			lb.Use(p, "edit " + dest + " max 1 "+height+" 16");
+			lb.Use(p, "edit " + dest + " blockslight 0");
+			dest -=1;
+			//east
+			lb.Use(p, "copy " + origin + " " + dest);
+			lb.Use(p, "edit " + dest + " name " + name + "-U-E");
+			lb.Use(p, "edit " + dest + " min 15 8 0");
+			lb.Use(p, "edit " + dest + " max 16 "+height+" 16");
+			lb.Use(p, "edit " + dest + " blockslight 0");
+		}
+		static void MakeCorners(Player p, int origin, string name, RawID requestedSlot) {
 			int dest;
 			if (!AreEnoughLBspacesFree(p, 4, out dest, requestedSlot)) { return; }
 			
@@ -264,8 +357,7 @@ namespace MCGalaxy {
 			lb.Use(p, "edit " + dest + " max 16 "+height+" 8");
 			lb.Use(p, "edit " + dest + " blockslight 0");
 		}
-		
-		static void MakeEighths(Player p, int origin, Command lb, string name, RawID requestedSlot) {
+		static void MakeEighths(Player p, int origin, string name, RawID requestedSlot) {
 			int dest;
 			if (!AreEnoughLBspacesFree(p, 8, out dest, requestedSlot)) { return; }
 			
@@ -330,9 +422,11 @@ namespace MCGalaxy {
 			lb.Use(p, "edit " + dest + " blockslight 0");
 		}
 		
-		const string TYPES = "slabs, walls, stairs, corners, eighths";
 		public override void Help(Player p)
 		{
+            if (!hooked) {
+                Load();
+            }
 			p.Message("%T/Make [type] [block] <optional starting ID>");
 			p.Message("%HCreates block variants out of [block] based on [type].");
 			p.Message("%H[type] can be: %b{0}", TYPES);
