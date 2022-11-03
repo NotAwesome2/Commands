@@ -104,8 +104,8 @@ namespace MCGalaxy {
 			string type = args[0].ToLower();
 			RawID sourceID;
 			if (!CommandParser.GetBlock(p, args[1], out sourceID)) { return; }
-            sourceId = Block.Convert(sourceId); // convert physics blocks to their visual form
-            sourceId = Block.ToRaw(sourceId);   // convert server block IDs to client block IDs
+            sourceID = Block.Convert(sourceID); // convert physics blocks to their visual form
+            sourceID = Block.ToRaw(sourceID);   // convert server block IDs to client block IDs
 			
 			string name = GetBlockName(p, (RawID)sourceID);
 			int requestedSlot = Block.MaxRaw;
