@@ -8,7 +8,7 @@ Custom commands written for Not Awesome 2
 - Use `/cmdload [command name]`
 
 ## Cmdadventure.cs
-Add /adventure, which is a quick shortcut for using /map buildable and /map deletable. Can be used by operator+ in any world or by anyone in their /os realm.
+Adds /adventure, which is a quick shortcut for using /map buildable and /map deletable. Can be used by operator+ in any world or by anyone in their /os realm.
 
 ## Cmdboost.cs
 Adds /boost, which allows you to boost the player's velocity in a given direction. See /help boost for more information.
