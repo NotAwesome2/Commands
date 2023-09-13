@@ -13,5 +13,8 @@ Adds /adventure, which is a quick shortcut for using /map buildable and /map del
 ## Cmdboost.cs
 Adds /boost, which allows you to boost the player's velocity in a given direction. See /help boost for more information.
 
+## Cmdreplacevars.cs
+Adds /replacevars, which is like /replace but automatically replaces all of the matching slabs, walls, etc.
+
 ## Wait, that's it?
 You can find more commands in plugins in other repositories [here](https://github.com/NotAwesome2).
